@@ -75,46 +75,36 @@ pipeline {
             }
         }
 
-        stage('AI Risk Analysis') {
-            steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: env.AWS_CREDENTIALS_ID
-                ]]) {
-                    script {
-                        def planJson   = readFile("${env.TF_WORKING_DIR}/plan.json")
-                        def payload    = groovy.json.JsonOutput.toJson([
-                            plan_json: new groovy.json.JsonSlurper().parseText(planJson),
-                            metadata: [
-                                environment:  params.TARGET_ENV,
-                                branch:       env.GIT_BRANCH,
-                                commit_id:    env.COMMIT_ID,
-                                triggered_by: env.GIT_AUTHOR,
-                                build_number: env.BUILD_NUMBER
-                            ]
-                        ])
-                        writeFile file: 'payload.json', text: payload
+stage('AI Risk Analysis') {
+    steps {
+        withCredentials([[
+            $class: 'AmazonWebServicesCredentialsBinding',
+            credentialsId: env.AWS_CREDENTIALS_ID
+        ]]) {
+            script {
+                def planJson = readFile("${env.TF_WORKING_DIR}/plan.json")
 
-                        sh '''
-                            aws lambda invoke \
-                                --function-name ${LAMBDA_FUNCTION_NAME} \
-                                --region ${AWS_REGION} \
-                                --payload fileb://payload.json \
-                                --cli-binary-format raw-in-base64-out \
-                                response.json
-                        '''
+                // Payload file seedha shell se banao — JsonSlurper avoid karo
+                writeFile file: 'payload.json', text: """{"plan_json": ${planJson}, "metadata": {"environment": "${params.TARGET_ENV}", "branch": "${env.GIT_BRANCH}", "commit_id": "${env.COMMIT_ID}", "triggered_by": "${env.GIT_AUTHOR}", "build_number": "${env.BUILD_NUMBER}"}}"""
 
-                        def resp   = new groovy.json.JsonSlurper().parseText(readFile('response.json'))
-                        def body   = new groovy.json.JsonSlurper().parseText(resp.body)
+                sh '''
+                    aws lambda invoke \
+                        --function-name ${LAMBDA_FUNCTION_NAME} \
+                        --region ${AWS_REGION} \
+                        --payload fileb://payload.json \
+                        --cli-binary-format raw-in-base64-out \
+                        response.json
+                '''
 
-                        env.PIPELINE_ACTION  = body.pipeline_action
-                        env.PIPELINE_MESSAGE = body.pipeline_message
-                        env.OVERALL_RISK     = body.analysis.overall_risk
-                        env.AI_REC           = body.analysis.approval_recommendation
-                        env.AI_SUMMARY       = body.analysis.summary
-                        env.ALERT_SENT       = body.alert_sent.toString()
+                // Response parse karo shell se — Groovy mein nahi
+                env.PIPELINE_ACTION  = sh(script: "cat response.json | python3 -c \"import sys,json; b=json.load(sys.stdin); print(json.loads(b['body'])['pipeline_action'])\"", returnStdout: true).trim()
+                env.PIPELINE_MESSAGE = sh(script: "cat response.json | python3 -c \"import sys,json; b=json.load(sys.stdin); print(json.loads(b['body'])['pipeline_message'])\"", returnStdout: true).trim()
+                env.OVERALL_RISK     = sh(script: "cat response.json | python3 -c \"import sys,json; b=json.load(sys.stdin); print(json.loads(b['body'])['analysis']['overall_risk'])\"", returnStdout: true).trim()
+                env.AI_REC           = sh(script: "cat response.json | python3 -c \"import sys,json; b=json.load(sys.stdin); print(json.loads(b['body'])['analysis']['approval_recommendation'])\"", returnStdout: true).trim()
+                env.AI_SUMMARY       = sh(script: "cat response.json | python3 -c \"import sys,json; b=json.load(sys.stdin); print(json.loads(b['body'])['analysis']['summary'])\"", returnStdout: true).trim()
+                env.ALERT_SENT       = sh(script: "cat response.json | python3 -c \"import sys,json; b=json.load(sys.stdin); print(json.loads(b['body'])['alert_sent'])\"", returnStdout: true).trim()
 
-                        echo """
+                echo """
 ╔══════════════════════════════════════════════════════════╗
 ║  AI ANALYSIS RESULT                                      ║
 ╠══════════════════════════════════════════════════════════╣
@@ -125,16 +115,16 @@ pipeline {
 ║  Alert Sent : ${env.ALERT_SENT}
 ╚══════════════════════════════════════════════════════════╝"""
 
-                        if (env.PIPELINE_ACTION == 'FAIL') {
-                            error("❌ REJECTED: ${env.PIPELINE_MESSAGE}")
-                        }
-                    }
+                if (env.PIPELINE_ACTION == 'FAIL') {
+                    error("❌ REJECTED: ${env.PIPELINE_MESSAGE}")
                 }
             }
-            post {
-                always { archiveArtifacts artifacts: 'response.json', allowEmptyArchive: true }
-            }
         }
+    }
+    post {
+        always { archiveArtifacts artifacts: 'response.json', allowEmptyArchive: true }
+    }
+}
 
         stage('Manual Approval Gate') {
             when { expression { env.PIPELINE_ACTION == 'WAIT_APPROVAL' } }
