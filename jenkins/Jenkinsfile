@@ -118,6 +118,8 @@ stage('AI Risk Analysis') {
                 if (env.PIPELINE_ACTION == 'FAIL') {
                     error("❌ REJECTED: ${env.PIPELINE_MESSAGE}")
                 }
+                // TESTING ONLY — har build pe approval gate aayega
+                env.PIPELINE_ACTION = 'WAIT_APPROVAL'
             }
         }
     }
