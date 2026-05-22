@@ -1,0 +1,55 @@
+{
+  "plan_json": {
+    "format_version": "1.2",
+    "terraform_version": "1.6.0",
+    "resource_changes": [
+      {
+        "address": "aws_s3_bucket.data_lake",
+        "type": "aws_s3_bucket",
+        "change": { "actions": ["create"], "before": null, "after": { "bucket": "company-data-lake-prod", "force_destroy": false } }
+      },
+      {
+        "address": "aws_s3_bucket_public_access_block.data_lake",
+        "type": "aws_s3_bucket_public_access_block",
+        "change": { "actions": ["create"], "before": null, "after": { "block_public_acls": false, "block_public_policy": false } }
+      },
+      {
+        "address": "aws_iam_role_policy_attachment.admin_access",
+        "type": "aws_iam_role_policy_attachment",
+        "change": { "actions": ["create"], "before": null, "after": { "role": "app-role", "policy_arn": "arn:aws:iam::aws:policy/AdministratorAccess" } }
+      },
+      {
+        "address": "aws_security_group.web_sg",
+        "type": "aws_security_group",
+        "change": { "actions": ["create"], "before": null, "after": { "ingress": [{ "from_port": 22, "to_port": 22, "cidr_blocks": ["0.0.0.0/0"] }] } }
+      },
+      {
+        "address": "aws_rds_instance.legacy_db",
+        "type": "aws_rds_instance",
+        "change": { "actions": ["delete"], "before": { "identifier": "prod-postgres", "engine": "postgres", "backup_retention_period": 0, "deletion_protection": false }, "after": null }
+      },
+      {
+        "address": "aws_lambda_function.api",
+        "type": "aws_lambda_function",
+        "change": { "actions": ["update"], "before": { "memory_size": 128 }, "after": { "memory_size": 512 } }
+      },
+      {
+        "address": "aws_dynamodb_table.sessions",
+        "type": "aws_dynamodb_table",
+        "change": { "actions": ["create"], "before": null, "after": { "name": "user-sessions", "server_side_encryption": [{ "enabled": false }] } }
+      },
+      {
+        "address": "aws_cloudwatch_alarm.cpu",
+        "type": "aws_cloudwatch_alarm",
+        "change": { "actions": ["no-op"], "before": { "alarm_name": "cpu-high" }, "after": { "alarm_name": "cpu-high" } }
+      }
+    ]
+  },
+  "metadata": {
+    "environment":  "dev",
+    "branch":       "feature/migrate-infra",
+    "commit_id":    "abc123",
+    "triggered_by": "local-test",
+    "build_number": "1"
+  }
+}

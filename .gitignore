@@ -1,0 +1,15 @@
+terraform/terraform.tfvars
+terraform/.build/
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+lambda/__pycache__/
+lambda/*.dist-info/
+lambda/bin/
+__pycache__/
+*.pyc
+response.json
+lambda_payload.json
+payload.json
+.DS_Store
